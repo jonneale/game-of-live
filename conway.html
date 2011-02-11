@@ -1,0 +1,63 @@
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.5.0/jquery.min.js"></script>
+<style type="text/css">
+  .row {clear:both;}
+  #grid div {float:left;}
+  #grid div a {width:20px; height: 15px; display:block;}
+  .on {background-color: black; border: solid 1px black;}
+  .off {background-color: white; border:solid 1px black;}
+</style>
+
+<div id="grid" style="width:300px; height:300px;">
+<br/>
+</div>
+
+<div class="options">
+  <label for="width" /> width
+  <input id="width" name="width" type="text" value="10">
+  <label for="height" /> height
+  <input id="height" name="height" type="text" value="10">
+  <a href="#generate" id="generate">Generate grid</a>
+  <a href="#go" id="go">GO!!</a>
+  </input>
+<div>
+
+
+<script type="text/javascript" >
+  $('#generate').click(function(){
+    $('#grid').html("")
+    for (i = 0; i < parseInt($("#width").val()); i++) {
+      $('#grid').append("<div class='row'>")
+      for (j = 0; j < parseInt($("#height").val()); j++) {
+        $('#grid').append("<div><a href='#' id='cell[" + i + "][" + j + "]' class='off cell'> </a></div>")
+      }
+      $('#grid').append("</div>")
+    }
+  });
+
+  $('.cell').live('click', function(){
+    toggle($(this));
+  });
+  
+  function toggle(element) {
+    if (element.hasClass('on'))
+    {
+      element.removeClass('on');
+      element.addClass('off');
+    }
+    else
+    {
+      element.removeClass("off");
+      element.addClass("on");
+    }
+  }
+  $('#go').click(function(){
+    for (i = 0; i < parseInt($("#width").val()); i++) {
+      for (j = 0; j < parseInt($("#height").val()); j++) {
+        alert($('#cell[' + i + '][' + j + ']')).hasClass('on');
+      }
+    }
+  });
+  
+</script>
+
+
