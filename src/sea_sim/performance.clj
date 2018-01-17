@@ -1,4 +1,4 @@
-(ns sea-sim.core
+(ns sea-sim.performance
   (:require [quil.core :as q]
             [quil.middleware :as m]))
 
@@ -14,15 +14,32 @@
   []
   (rand-nth (range 2)))
 
+(defn in-bounds
+  [v m]
+  (min (max v 0) (dec m)))
+
+(defn cell-neighbour-coords
+  [x y max-width max-height]
+  (set 
+   (for [x-diff (range -1 2)
+         y-diff (range -1 2)
+         :when (not (and (zero? x-diff) 
+                         (zero? y-diff)))]
+     [(in-bounds (+ x x-diff) max-width)
+      (in-bounds (+ y y-diff) max-height)])))
+
 (defn cell
   [x y state single-cell-pixel-width single-cell-pixel-height cells-wide cells-high]
   {:x x
    :y y
    :state state
-   :neighbours ()
+   :neighbours (cell-neighbour-coords x y cells-wide cells-high)
    :draw-fn (fn [state] 
               (q/fill (* state 255)) 
-              (q/rect (* x single-cell-pixel-width) (* y single-cell-pixel-height) single-cell-pixel-width single-cell-pixel-height))})
+              (q/rect (* x single-cell-pixel-width) 
+                      (* y single-cell-pixel-height) 
+                      single-cell-pixel-width 
+                      single-cell-pixel-height))})
 
 (defn initial-state
   [pixels-wide pixels-high cells-wide cells-high]
@@ -38,24 +55,10 @@
                         cells-high)})))
 
 (defn setup [cells-wide cells-high]
-  (q/frame-rate 30)
+  (q/frame-rate 60)
   (q/color-mode :hsb)
   (q/no-stroke)
   {:grid (initial-state 640 480 cells-wide cells-high)})
-
-(defn in-bounds
-  [v m]
-  (min (max v 0) (dec m)))
-
-(defn cell-neighbour-coords
-  [{:keys [x y] :as cell} max-width max-height]
-  (set 
-   (for [x-diff (range -1 2)
-         y-diff (range -1 2)
-         :when (not (and (zero? x-diff) 
-                         (zero? y-diff)))]
-     [(in-bounds (+ x x-diff) max-width)
-      (in-bounds (+ y y-diff) max-height)])))
 
 (defn alive-neighbours
   [cell-neighbours grid]
@@ -68,23 +71,27 @@
     1
     0))
 
-(defn update-cell
-  [cell grid cells-wide cells-high]
-  (assoc cell :state
-         (-> cell
-             (cell-neighbour-coords cells-wide cells-high)
-             (alive-neighbours grid)
-             (calculate-new-state cell))))
+(defn new-cell-state
+  [cell grid]
+  (-> cell
+      :neighbours
+      (alive-neighbours grid)
+      (calculate-new-state cell)))
 
-(defn update-grid
-  [grid cells-wide cells-high]
-  (reduce-kv (fn [agg k v]
-               (assoc agg k (update-cell v grid cells-wide cells-high)))
-             {} grid))
+(defn update-cell
+  [[coords cell] grid]
+  (let [new-state (new-cell-state cell grid)]
+    (if (= (:state cell) new-state)
+      [coords cell]
+      [coords (assoc cell :state new-state)])))
 
 (defn update-state
-  [cells-wide cells-high state]
-  (update-in state [:grid] #(update-grid % cells-wide cells-high)))
+  [state]
+  (assoc state :grid
+         (apply hash-map
+                (apply concat 
+                       (for [cell (:grid state)]
+                         (update-cell cell (:grid state)))))))
 
 (defn draw-state
   [{:keys [grid] :as state}]
@@ -98,6 +105,6 @@
     :host "host"
     :size [640 480]
     :setup (partial setup cells-wide cells-high)
-    :update (partial update-state cells-wide cells-high)
+    :update update-state
     :draw draw-state
     :middleware [m/fun-mode]))
