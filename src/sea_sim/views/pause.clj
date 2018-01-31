@@ -1,4 +1,4 @@
-(ns sea-sim.pause
+(ns sea-sim.views.pause
   (:require [quil.core :as q]
             [quil.middleware :as m]))
 

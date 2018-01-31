@@ -1,7 +1,7 @@
-(ns sea-sim.grid-show
+(ns sea-sim.core
   (:require [quil.core :as q]
             [quil.middleware :as m]
-            [sea-sim.views.shanty :as shanty]
+            [sea-sim.views.sea :as shanty]
             [sea-sim.state :as state]
             [sea-sim.views.pause :as pause]
             [sea-sim.interrupt :as interrupt]))
@@ -36,3 +36,8 @@
     :update update-state
     :draw draw-state
     :middleware [m/fun-mode]))
+
+
+(defn -main
+  [& args]
+  (run 5 5))
