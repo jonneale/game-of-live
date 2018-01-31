@@ -1,6 +1,13 @@
-(ns sea-sim.performance
+(ns sea-sim.views.sea
   (:require [quil.core :as q]
-            [quil.middleware :as m]))
+            [quil.middleware :as m]
+            [clojure.java.io :as io]))
+
+(def images
+  (delay
+   {:calm  (q/load-image "images/calm.jpg")
+    :rough (q/load-image "images/rough.jpg")
+    :ship  (q/load-image "images/ship.jpg")}))
 
 (defn dead?
   [state]
@@ -29,20 +36,18 @@
       (in-bounds (+ y y-diff) max-height)])))
 
 (defn cell
-  [x y state single-cell-pixel-width single-cell-pixel-height cells-wide cells-high]
+  [x y state single-cell-pixel-width single-cell-pixel-height cells-wide cells-high images]
   {:x x
    :y y
    :state state
    :neighbours (cell-neighbour-coords x y cells-wide cells-high)
    :draw-fn (fn [state] 
-              (q/fill (* state 255)) 
-              (q/rect (* x single-cell-pixel-width) 
-                      (* y single-cell-pixel-height) 
-                      single-cell-pixel-width 
-                      single-cell-pixel-height))})
+              (if (dead? state)
+                (q/image (@images :calm) (* x single-cell-pixel-width)  (* y single-cell-pixel-height) )
+                (q/image (@images :rough) (* x single-cell-pixel-width)  (* y single-cell-pixel-height) )))})
 
 (defn initial-state
-  [pixels-wide pixels-high cells-wide cells-high]
+  [pixels-wide pixels-high cells-wide cells-high images]
   (apply merge 
          (for [x (range cells-wide)
                y (range cells-high)]
@@ -52,13 +57,15 @@
                         (/ pixels-wide cells-wide) 
                         (/ pixels-high cells-high)
                         cells-wide
-                        cells-high)})))
+                        cells-high
+                        images)})))
 
-(defn setup [cells-wide cells-high]
-  (q/frame-rate 60)
-  (q/color-mode :hsb)
-  (q/no-stroke)
-  {:grid (initial-state 640 480 cells-wide cells-high)})
+(defn draw-state
+  [state]
+  (let [grid-data (get-in state [:grid :data])]
+    (q/background 128)
+    (doseq [cell (vals grid-data)]
+      ((:draw-fn cell) (:state cell)))))
 
 (defn alive-neighbours
   [cell-neighbours grid]
@@ -87,24 +94,14 @@
 
 (defn update-state
   [state]
-  (assoc state :grid
-         (apply hash-map
-                (apply concat 
-                       (for [cell (:grid state)]
-                         (update-cell cell (:grid state)))))))
+  (let [grid-data (get-in state [:grid :data])]
+    (apply hash-map
+           (apply concat 
+                  (for [cell grid-data]
+                    (update-cell cell grid-data))))))
 
-(defn draw-state
-  [{:keys [grid] :as state}]
-  (q/background 128)
-  (doseq [cell (vals grid)]
-    ((:draw-fn cell) (:state cell))))
-
-(defn run
-  [cells-wide cells-high]
-  (q/defsketch game-of-life
-    :host "host"
-    :size [640 480]
-    :setup (partial setup cells-wide cells-high)
-    :update update-state
-    :draw draw-state
-    :middleware [m/fun-mode]))
+(defn init
+  [width height cells-wide cells-high]
+  {:data (initial-state 640 480 cells-wide cells-high images)
+   :draw-fn draw-state
+   :update-fn update-state})

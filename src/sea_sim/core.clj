@@ -1,96 +1,31 @@
-(ns sea-sim.core
+(ns sea-sim.grid-show
   (:require [quil.core :as q]
-            [quil.middleware :as m]))
-
-(defn dead?
-  [state]
-  (= 0 state))
-
-(defn alive?
-  [state]
-  (= 1 state))
-
-(defn rand-initial-state
-  []
-  (rand-nth (range 2)))
-
-(defn cell
-  [x y state single-cell-pixel-width single-cell-pixel-height cells-wide cells-high]
-  {:x x
-   :y y
-   :state state
-   :neighbours ()
-   :draw-fn (fn [state] 
-              (q/fill (* state 255)) 
-              (q/rect (* x single-cell-pixel-width) (* y single-cell-pixel-height) single-cell-pixel-width single-cell-pixel-height))})
-
-(defn initial-state
-  [pixels-wide pixels-high cells-wide cells-high]
-  (apply merge 
-         (for [x (range cells-wide)
-               y (range cells-high)]
-           {[x y] (cell x 
-                        y 
-                        (rand-initial-state) 
-                        (/ pixels-wide cells-wide) 
-                        (/ pixels-high cells-high)
-                        cells-wide
-                        cells-high)})))
-
-(defn setup [cells-wide cells-high]
-  (q/frame-rate 30)
-  (q/color-mode :hsb)
-  (q/no-stroke)
-  {:grid (initial-state 640 480 cells-wide cells-high)})
-
-(defn in-bounds
-  [v m]
-  (min (max v 0) (dec m)))
-
-(defn cell-neighbour-coords
-  [{:keys [x y] :as cell} max-width max-height]
-  (set 
-   (for [x-diff (range -1 2)
-         y-diff (range -1 2)
-         :when (not (and (zero? x-diff) 
-                         (zero? y-diff)))]
-     [(in-bounds (+ x x-diff) max-width)
-      (in-bounds (+ y y-diff) max-height)])))
-
-(defn alive-neighbours
-  [cell-neighbours grid]
-  (reduce + (map (comp :state grid) cell-neighbours)))
-
-(defn calculate-new-state
-  [neighbour-counts {:keys [state] :as cell}]
-  (if (or (and (alive? state) (= neighbour-counts 2))
-          (= neighbour-counts 3))
-    1
-    0))
-
-(defn update-cell
-  [cell grid cells-wide cells-high]
-  (assoc cell :state
-         (-> cell
-             (cell-neighbour-coords cells-wide cells-high)
-             (alive-neighbours grid)
-             (calculate-new-state cell))))
-
-(defn update-grid
-  [grid cells-wide cells-high]
-  (reduce-kv (fn [agg k v]
-               (assoc agg k (update-cell v grid cells-wide cells-high)))
-             {} grid))
-
-(defn update-state
-  [cells-wide cells-high state]
-  (update-in state [:grid] #(update-grid % cells-wide cells-high)))
+            [quil.middleware :as m]
+            [sea-sim.views.shanty :as shanty]
+            [sea-sim.state :as state]
+            [sea-sim.views.pause :as pause]
+            [sea-sim.interrupt :as interrupt]))
 
 (defn draw-state
-  [{:keys [grid] :as state}]
-  (q/background 128)
-  (doseq [cell (vals grid)]
-    ((:draw-fn cell) (:state cell))))
+  [current-state]
+  ((state/current-draw-fn current-state) current-state))
+
+(defn setup [cells-wide cells-high]
+  (q/frame-rate 1)
+  (q/color-mode :hsb)
+  (q/no-stroke)
+  {:grid         (shanty/init 640 480 cells-wide cells-high)
+   :pause        (pause/init 640 480)
+   :current-view [:grid]})
+
+(defn update-state
+  [current-state]
+  (println "states - " (:current-view current-state))
+  (let [keyboard-modified-state (if (q/key-pressed?)
+                                  (interrupt/handle-keypress (q/key-as-keyword) current-state)
+                                  (interrupt/handle-no-keypress current-state))]
+    (let [new-data     ((state/current-update-fn keyboard-modified-state) keyboard-modified-state)]
+      (assoc-in keyboard-modified-state [(state/current-view keyboard-modified-state) :data] new-data))))
 
 (defn run
   [cells-wide cells-high]
@@ -98,6 +33,6 @@
     :host "host"
     :size [640 480]
     :setup (partial setup cells-wide cells-high)
-    :update (partial update-state cells-wide cells-high)
+    :update update-state
     :draw draw-state
     :middleware [m/fun-mode]))
